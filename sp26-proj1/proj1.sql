@@ -179,16 +179,54 @@ AS
 -- Question 4iii
 CREATE VIEW q4iii(yearid, mindiff, maxdiff, avgdiff)
 AS
-  SELECT 1, 1, 1, 1 -- replace this line
+  WITH basic(yearid, mins, maxs, avgs) AS
+  (SELECT yearid, MIN(salary), MAX(salary), AVG(salary)
+  FROM salaries
+  GROUP BY yearid
+  ORDER BY yearid
+  ),
+  diff_basic(yearid, mins, maxs, avgs, pmins, pmaxs, pavgs) AS
+  (SELECT b1.yearid, b1.mins, b1.maxs, b1.avgs, b2.mins, b2.maxs, b2.avgs
+  FROM basic b1, basic b2
+  WHERE b1.yearid = b2.yearid + 1 -- make sure not print the first yearid in s1 table
+  )
+  SELECT yearid, mins - pmins, maxs - pmaxs, avgs - pavgs
+  FROM diff_basic
+  ORDER BY yearid
 ;
 
 -- Question 4iv
 CREATE VIEW q4iv(playerid, namefirst, namelast, salary, yearid)
 AS
-  SELECT 1, 1, 1, 1, 1 -- replace this line
+  WITH maxSalary(playerid, salary, yearid) AS
+  (SELECT playerid, salary, yearid
+     FROM salaries
+     WHERE salary = (SELECT MAX(salary) FROM salaries WHERE yearid = 2000)
+     AND yearid = 2000
+
+   UNION ALL
+
+   SELECT playerid, salary, yearid
+     FROM salaries
+     WHERE salary = (SELECT MAX(salary) FROM salaries WHERE yearid = 2001)
+     AND yearid = 2001
+  )
+
+  SELECT ms.playerid, nameFirst, nameLast, salary, yearid
+  FROM maxSalary ms INNER JOIN people p
+  ON ms.playerid = p.playerid
+  ORDER BY yearid
 ;
 -- Question 4v
 CREATE VIEW q4v(team, diffAvg) AS
-  SELECT 1, 1 -- replace this line
+  WITH salaryas AS
+  (SELECT a.teamid, a.playerid, salary
+  FROM allstarfull a INNER JOIN salaries s
+  ON a.playerid = s.playerid AND a.yearid = s.yearid AND a.teamid = s.teamid
+  WHERE a.yearid = 2016
+  )
+  SELECT teamid, MAX(salary) - MIN(salary)
+  FROM salaryas sas
+  GROUP BY sas.teamid
 ;
 
