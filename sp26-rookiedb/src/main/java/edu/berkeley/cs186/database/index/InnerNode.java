@@ -81,8 +81,10 @@ class InnerNode extends BPlusNode {
     @Override
     public LeafNode get(DataBox key) {
         // TODO(proj2): implement
+        int index = numLessThanEqual(key, keys);
+        BPlusNode child = getChild(index);
 
-        return null;
+        return child.get(key);
     }
 
     // See BPlusNode.getLeftmostLeaf.
