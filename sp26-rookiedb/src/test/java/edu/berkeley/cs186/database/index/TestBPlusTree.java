@@ -442,6 +442,7 @@ public class TestBPlusTree {
 
                 // Test get.
                 for (int i = 0; i < keys.size(); ++i) {
+                    //System.out.println(tree.toSexp());
                     assertEquals(Optional.of(rids.get(i)), tree.get(keys.get(i)));
                 }
 
@@ -469,6 +470,32 @@ public class TestBPlusTree {
             }
         }
     }
+
+    @Test
+    public void testSeqPut() {
+        List<DataBox> keys = new ArrayList<>();
+        List<RecordId> rids = new ArrayList<>();
+
+        for (int i = 0; i < 500; ++i) {
+            keys.add(new IntDataBox(i));
+            rids.add(new RecordId(i, (short) i));
+        }
+        // try trees with different insertion orders
+        for (int d = 2; d < 5; d++) {
+            // insert all keys in order
+            BPlusTree tree = getBPlusTree(Type.intType(), d);
+            for (int i = 0; i < keys.size(); i++) {
+                tree.put(keys.get(i), rids.get(i));
+            }
+            // point to point test get
+            for (int i = 0; i < keys.size(); i++) {
+                assertEquals(Optional.of(rids.get(i)), tree.get(keys.get(i)));
+            }
+
+            // full table scan
+        }
+    }
+
 
     @Test
     @Category(SystemTests.class)

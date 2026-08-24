@@ -158,11 +158,62 @@ class LeafNode extends BPlusNode {
         return this;
     }
 
+    // split node
+    private Optional<Pair<DataBox, Long>> split() {
+        // 1. construct a new leaf node
+        // new leaf node has old leaf node's rightSibling(page num)
+        // move pairs in old leaf node from (2d + 1)th to end into the new leaf node
+        // (don't forget remove pairs in old leaf node)
+
+        int d = metadata.getOrder();
+        List<DataBox> newKeys = new ArrayList<>(this.keys.subList(d, keys.size()));
+        List<RecordId> newRids = new ArrayList<>(this.rids.subList(d, keys.size()));
+        Optional<Long> oldRightSibling = this.rightSibling;
+
+        LeafNode newNode = new LeafNode(metadata, bufferManager, newKeys, newRids,
+                oldRightSibling, treeContext);
+
+        // 2. remove pairs from old leaf node
+        this.keys.subList(d, keys.size()).clear();
+        this.rids.subList(d, rids.size()).clear();
+
+        // 3. set old leaf node's rightSibling to new leaf node(page num)
+        this.rightSibling = Optional.of(newNode.getPage().getPageNum());
+
+        this.sync();
+
+        // 4. return the new leaf node (leftmostKey, rid) to innerNode
+        DataBox splitKey = newNode.getKeys().get(0);
+        Long newNodePageNum = newNode.getPage().getPageNum();
+        return Optional.of(new Pair<>(splitKey, newNodePageNum));
+    }
+
     // See BPlusNode.put.
     @Override
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
         // TODO(proj2): implement
+        // 1. find the key index using binary search
+        int index = Collections.binarySearch(keys, key);
+        // if index >= 0, the key duplicate, throw BPlusTreeException
+        if (index >= 0) {
+            throw new BPlusTreeException("Duplicate key: " + key);
+        }
+        // if index < 0, the input index is -(index + 1)
+        index = -(index + 1);
 
+        // 2. add key and rid at index to keys and rids
+        keys.add(index, key);
+        rids.add(index, rid);
+
+
+        // 3. after add check if keys.size() > 2 * d, if yes, split node
+        if (keys.size() > 2 * metadata.getOrder()) {
+            return split();
+        }
+
+        this.sync();
+
+        // 4. if <= 2 * d, we done, only return Optional.empty()
         return Optional.empty();
     }
 

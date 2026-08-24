@@ -9,6 +9,7 @@ import edu.berkeley.cs186.database.memory.BufferManager;
 import edu.berkeley.cs186.database.memory.Page;
 import edu.berkeley.cs186.database.table.RecordId;
 
+import javax.swing.text.html.Option;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -96,11 +97,62 @@ class InnerNode extends BPlusNode {
         return leftmostChild.getLeftmostLeaf();
     }
 
+    private Optional<Pair<DataBox, Long>> split() {
+        // 1. construct a new inner node
+
+        // move keys in old inner node from (2d + 1)th to end into the new inner node
+        // (don't forget remove pairs in old leaf node)
+
+        int d = metadata.getOrder();
+        DataBox splitKey = this.keys.get(d);
+
+        List<DataBox> newKeys = new ArrayList<>(this.keys.subList(d + 1, keys.size()));
+        List<Long> newChild = new ArrayList<>(this.children.subList(d + 1, children.size()));
+
+        InnerNode newNode = new InnerNode(metadata, bufferManager, newKeys, newChild, treeContext);
+
+        // 2. remove pairs from old inner node
+        this.keys.subList(d, keys.size()).clear();
+        this.children.subList(d + 1, children.size()).clear();
+
+        // 3. move the new inner node's leftmostKey up to top node
+
+        Long newNodePageNum = newNode.getPage().getPageNum();
+
+        // 4. remove the new inner node's leftmostKey(bc this is move not copy)
+        //newNode.getKeys().remove(0);
+        this.sync();
+
+        return Optional.of(new Pair<>(splitKey, newNodePageNum));
+    }
+
     // See BPlusNode.put.
     @Override
     public Optional<Pair<DataBox, Long>> put(DataBox key, RecordId rid) {
         // TODO(proj2): implement
+        // 1. find the index to put key into child
+        int index = numLessThanEqual(key, keys);
+        Optional<Pair<DataBox, Long>> newNode = getChild(index).put(key, rid);
 
+        // 2. if receive a pair,
+        // add the key into index(step 1 compute), add new child pointer
+        if (newNode.isPresent()) {
+            keys.add(index, newNode.get().getFirst());
+            children.add(index + 1, newNode.get().getSecond());
+            assert (keys.size() + 1 == children.size());
+        } else {
+            // if receive optional.empty, direct return(no splits)
+            return Optional.empty();
+        }
+
+        // 3. after add, check if keys.size() > 2 * d, if yes, split node, and return new node
+        if (keys.size() > 2 * metadata.getOrder()) {
+            return split();
+        }
+
+        this.sync();
+
+        // 4. if keys.size() <= 2 * d, direct return Optional.empty()
         return Optional.empty();
     }
 
