@@ -203,8 +203,12 @@ public class BPlusTree {
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
         // TODO(proj2): Return a BPlusTreeIterator.
-
-        return Collections.emptyIterator();
+        // 1. find the leftest leaf node
+        LeafNode leftestLeaf = root.getLeftmostLeaf();
+        // 2. get the leaf's iterator
+        Iterator<RecordId> leftestLeafIter = leftestLeaf.scanAll();
+        // 3. call constructor for bplusTree iterator (the chain iterator for leaf node)
+        return new BPlusTreeIterator(leftestLeaf, leftestLeafIter);
     }
 
     /**
@@ -236,8 +240,12 @@ public class BPlusTree {
         LockUtil.ensureSufficientLockHeld(lockContext, LockType.NL);
 
         // TODO(proj2): Return a BPlusTreeIterator.
-
-        return Collections.emptyIterator();
+        // 1. get the leaf node for this key
+        LeafNode leafNode = root.get(key);
+        // 2. use the leaf find the iterator for scanGreaterEqual
+        Iterator<RecordId> iter = leafNode.scanGreaterEqual(key);
+        // 3. call constructor for bplusTree iterator (the chain iterator for leaf node)
+        return new BPlusTreeIterator(leafNode, iter);
     }
 
     /**
@@ -447,18 +455,37 @@ public class BPlusTree {
     private class BPlusTreeIterator implements Iterator<RecordId> {
         // TODO(proj2): Add whatever fields and constructors you want here.
 
+        private LeafNode currLeaf;
+        private Iterator<RecordId> currIter;
+
+        // build a constructor
+        public BPlusTreeIterator(LeafNode currLeaf, Iterator<RecordId> currIter) {
+            this.currLeaf = currLeaf;
+            this.currIter = currIter;
+        }
+
         @Override
         public boolean hasNext() {
             // TODO(proj2): implement
+            // 1. if current leaf still has next, return ture
+            // 2. if current leaf don't have next, check has rightSibling or not
+            // 3. even if have rightSibling, it may have no key, we still need to return false
 
-            return false;
+            // only return true if currIter has next
+            while (!currIter.hasNext() && currLeaf.getRightSibling().isPresent()) {
+                currLeaf = currLeaf.getRightSibling().get();
+                currIter = currLeaf.scanAll();
+            }
+            return currIter.hasNext();
         }
 
         @Override
         public RecordId next() {
             // TODO(proj2): implement
-
-            throw new NoSuchElementException();
+            if (!currIter.hasNext()) {
+                throw new NoSuchElementException();
+            }
+            return currIter.next();
         }
     }
 }
