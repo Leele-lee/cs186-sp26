@@ -1,7 +1,6 @@
 package edu.berkeley.cs186.database.index;
 
 import edu.berkeley.cs186.database.TimeoutScaling;
-import edu.berkeley.cs186.database.categories.HiddenTests;
 import edu.berkeley.cs186.database.categories.Proj2Tests;
 import edu.berkeley.cs186.database.categories.PublicTests;
 import edu.berkeley.cs186.database.categories.SystemTests;
@@ -26,6 +25,7 @@ import org.junit.rules.DisableOnDebug;
 import org.junit.rules.TestRule;
 import org.junit.rules.Timeout;
 
+import javax.xml.crypto.Data;
 import java.util.*;
 import java.util.function.Supplier;
 
@@ -530,5 +530,100 @@ public class TestBPlusTree {
 
         Iterator<RecordId> iter = tree.scanAll();
         assertFalse(iter.hasNext());
+    }
+
+    @Test
+    public void testExtremeFillFactor() {
+        // Creates a B+ Tree with order 2, fillFactor 1.0 and attempts to bulk
+        // load 15 values.
+        BPlusTree tree = getBPlusTree(Type.intType(), 2);
+        float fillFactor = 1.0f;
+        assertEquals("()", tree.toSexp());
+
+        List<Pair<DataBox, RecordId>> data = new ArrayList<>();
+        for (int i = 1; i < 15; ++i) {
+            data.add(new Pair<>(new IntDataBox(i), new RecordId(i, (short) i)));
+        }
+
+        tree.bulkLoad(data.iterator(), fillFactor);
+        //      (    5        9         13        _   )
+        //       /       |         |         \
+        // (1 2 3 4) (5 6 7 8) (9 10 11 12) (13 14 _ _)
+        String leaf0 = "((1 (1 1)) (2 (2 2)) (3 (3 3)) (4 (4 4)))";
+        String leaf1 = "((5 (5 5)) (6 (6 6)) (7 (7 7)) (8 (8 8)))";
+        String leaf2 = "((9 (9 9)) (10 (10 10)) (11 (11 11)) (12 (12 12)))";
+        String leaf3 = "((13 (13 13)) (14 (14 14)))";
+        String sexp = String.format("(%s 5 %s 9 %s 13 %s)", leaf0, leaf1, leaf2, leaf3);
+        assertEquals(sexp, tree.toSexp());
+    }
+
+    @Test
+    public void testExtremeFillFactor2 () {
+        // Creates a B+ Tree with order 1, fillFactor 0.1 and attempts to bulk
+        // load 4 values.
+        BPlusTree tree2 = getBPlusTree(Type.intType(), 1);
+        float fillFactor2 = 0.1f;
+        assertEquals("()", tree2.toSexp());
+
+        List<Pair<DataBox, RecordId>> data2 = new ArrayList<>();
+        for (int i = 1; i < 5; i++) {
+            data2.add(new Pair<>(new IntDataBox(i), new RecordId(i, (short) i)));
+        }
+
+        tree2.bulkLoad(data2.iterator(), fillFactor2);
+        //              (3)
+        //           /       \
+        //         (2)       (4)
+        //       /   |       |     \
+        // (1 _)   (2 _)    (3 _)  (4 _)
+        String ll = "((1 (1 1)))";
+        String lr = "((2 (2 2)))";
+        String rl = "((3 (3 3)))";
+        String rr = "((4 (4 4)))";
+        String l = String.format("(%s 2 %s)", ll, lr);
+        String r = String.format("(%s 4 %s)", rl, rr);
+        String sexp = String.format("(%s 3 %s)", l, r);
+        assertEquals(sexp, tree2.toSexp());
+    }
+
+    @Test
+    public void testBulkLoadLarger() {
+        BPlusTree tree = getBPlusTree(Type.intType(), 2);
+        float fillFactor = 0.75f;
+        List<Pair<DataBox, RecordId>> data = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            data.add(new Pair<>(new IntDataBox(i), new RecordId(i, (short) i)));
+        }
+
+        tree.bulkLoad(data.iterator(), fillFactor);
+        int numRecords = 1000;
+
+        // a. point lookup
+        // make sure every entry can find
+        for (int i = 0; i < numRecords; i++) {
+            DataBox key = new IntDataBox(i);
+            RecordId expectedRID = new RecordId(i, (short) i);
+            assertEquals("在查找 Key " + i + " 时出错", tree.get(key), Optional.of(expectedRID));
+        }
+
+        // b. scan all
+        Iterator<RecordId> iter = tree.scanAll();
+        int count = 0;
+        while(iter.hasNext()) {
+            assertEquals(iter.next().getPageNum(), count);
+            count++;
+        }
+        assertEquals("the number of scaned is not correct", count, numRecords);
+
+        // c. test not exsit keys
+        assertEquals(Optional.empty(), tree.get(new IntDataBox(-1)));
+        assertEquals(Optional.empty(), tree.get(new IntDataBox(numRecords)));
+
+        // d. put new keys after bulkLoad
+        tree.put(new IntDataBox(1000), new RecordId(1000, (short) 1000));
+        assertEquals(tree.get(new IntDataBox(1000)), Optional.of(new RecordId(1000, (short) 1000)));
+
+        // test the old data still in tree
+        assertEquals(tree.get(new IntDataBox(500)), Optional.of(new RecordId(500, (short)500)));
     }
 }
