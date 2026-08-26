@@ -11,6 +11,7 @@ import edu.berkeley.cs186.database.io.DiskSpaceManager;
 import edu.berkeley.cs186.database.memory.BufferManager;
 import edu.berkeley.cs186.database.table.RecordId;
 
+import javax.xml.crypto.Data;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -318,6 +319,37 @@ public class BPlusTree {
         // Note: You should NOT update the root variable directly.
         // Use the provided updateRoot() helper method to change
         // the tree's root if the old root splits.
+
+        // 0. This method should raise an exception if the tree is not empty at time
+        // of bulk loading.
+        if (scanAll().hasNext()) {
+            throw new BPlusTreeException("The tree is not empty!");
+        }
+
+        // 1. while loop data, until no data
+        // 2. call root.bulkLoad
+        // 3. if return pair, build a new root that has new keys and child
+        // 4. update new root
+        while (data.hasNext()) {
+            Optional<Pair<DataBox, Long>> newNode = root.bulkLoad(data, fillFactor);
+            if (newNode.isPresent()) {
+                // get the returned new node, according this build a new inner node(root)
+                DataBox splitKey = newNode.get().getFirst();
+                Long pageNum = newNode.get().getSecond();
+                // build key list and children list
+                List<DataBox> newKeys = new ArrayList<>();
+                List<Long> newChild = new ArrayList<>();
+                // add key to key list,
+                newKeys.add(splitKey);
+                // add two children to child list, first is old root, second is new node returned
+                newChild.add(this.root.getPage().getPageNum());
+                newChild.add(pageNum);
+                // build a new root
+                InnerNode newRoot = new InnerNode(metadata, bufferManager, newKeys, newChild, lockContext);
+                // update root
+                updateRoot(newRoot);
+            }
+        }
 
         return;
     }

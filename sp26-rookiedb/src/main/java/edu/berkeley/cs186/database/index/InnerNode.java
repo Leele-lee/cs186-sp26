@@ -10,6 +10,7 @@ import edu.berkeley.cs186.database.memory.Page;
 import edu.berkeley.cs186.database.table.RecordId;
 
 import javax.swing.text.html.Option;
+import javax.xml.crypto.Data;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -161,7 +162,21 @@ class InnerNode extends BPlusNode {
     public Optional<Pair<DataBox, Long>> bulkLoad(Iterator<Pair<DataBox, RecordId>> data,
             float fillFactor) {
         // TODO(proj2): implement
-
+        // 1. if data still has next, call rightmost child's bulkLoad
+        while (data.hasNext()) {
+            Optional<Pair<DataBox, Long>> newNode = getChild(children.size() - 1).bulkLoad(data, fillFactor);
+            // 2. if receive pair from child, add this key to curr node, add child pointer
+            if (newNode.isPresent()) {
+                keys.add(keys.size(), newNode.get().getFirst());
+                children.add(children.size(), newNode.get().getSecond());
+                assert(keys.size() + 1 == children.size());
+            }
+            // 3. if current key.size() > 2d, split like put before
+            if (keys.size() > 2 * metadata.getOrder()) {
+                return split();
+            }
+        }
+        this.sync();
         return Optional.empty();
     }
 

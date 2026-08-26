@@ -10,6 +10,7 @@ import edu.berkeley.cs186.database.memory.Page;
 import edu.berkeley.cs186.database.table.RecordId;
 
 import javax.swing.text.html.Option;
+import javax.xml.crypto.Data;
 import java.nio.ByteBuffer;
 import java.util.*;
 
@@ -223,6 +224,40 @@ class LeafNode extends BPlusNode {
             float fillFactor) {
         // TODO(proj2): implement
 
+        // 1. computer the limits number for each leaf
+        int limits = (int)Math.ceil(2 * metadata.getOrder() * fillFactor);
+
+        // 2. if iterator still have next, direct put keys at the end of list
+        while (data.hasNext()) {
+            Pair<DataBox, RecordId> currData = data.next();
+            keys.add(currData.getFirst());
+            rids.add(currData.getSecond());
+
+
+            // 3. if beyond limits, split and return new split key to up node
+            if (keys.size() > limits) {
+                // build new key list
+                List<DataBox> newKeys = new ArrayList<>();
+                newKeys.add(keys.remove(keys.size() - 1));
+
+                // build new rid list
+                List<RecordId> newRecords = new ArrayList<>();
+                newRecords.add(rids.remove(rids.size() - 1));
+
+                // build new leaf node
+                LeafNode newLeaf = new LeafNode(metadata, bufferManager, newKeys, newRecords,
+                        this.rightSibling, treeContext);
+                // set rightSibling
+                this.rightSibling = Optional.of(newLeaf.getPage().getPageNum());
+                // sync
+                this.sync();
+                // return new leaf node to up node
+                DataBox splitKey = newLeaf.getKeys().get(0);
+                Long newNodePageNum = newLeaf.getPage().getPageNum();
+                return Optional.of(new Pair<>(splitKey, newNodePageNum));
+            }
+        }
+        this.sync();
         return Optional.empty();
     }
 
