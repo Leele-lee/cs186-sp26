@@ -155,7 +155,7 @@ public class BNLJOperator extends JoinOperator {
             while(true) {
                 // from inner to outer
                 // Case 1: The right page iterator has a value to yield
-                if (this.rightPageIterator.hasNext()) {
+                if (this.rightPageIterator != null && this.rightPageIterator.hasNext()) {
                     // there's a next right record, join it if there's a match
                     Record rightRecord = rightPageIterator.next();
                     if (compare(leftRecord, rightRecord) == 0) {
