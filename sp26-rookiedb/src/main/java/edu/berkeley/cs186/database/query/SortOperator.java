@@ -100,22 +100,6 @@ public class SortOperator extends QueryOperator {
     }
 
     /**
-     * hold Pair<Record, Integer> objects where a Pair (r, i) is the
-     * Record r with the smallest value you are sorting on currently unmerged
-     * from run i. `i` can be useful to locate which record to add to the queue
-     * next after the smallest element is removed.
-     */
-    private class RunMergeEntry {
-        Record record;
-        int runIndex;
-
-        RunMergeEntry(Record record, int runIndex) {
-            this.record = record;
-            this.runIndex = runIndex;
-        }
-    }
-
-    /**
      * Given a list of sorted runs, returns a new run that is the result of
      * merging the input runs. You should use a Priority Queue (java.util.PriorityQueue)
      * to determine which record should be added to the output run
@@ -139,10 +123,8 @@ public class SortOperator extends QueryOperator {
         // 1. build a return merged run
         Run mergedRun = makeRun();
 
-        // 2. build a priority queue that use RecordComparator and store RunMergeEntry(record, runIndex)
-        PriorityQueue<RunMergeEntry> pq = new PriorityQueue<>(
-                (a, b) -> new RecordComparator().compare(a.record, b.record)
-        );
+        // 2. build a priority queue that use RecordPairComparator and store Pair(record, runIndex)
+        PriorityQueue<Pair<Record, Integer>> pq = new PriorityQueue<>();
         // 3. change the list of runs to list of iterators
         List<Iterator<Record>> iterators = new ArrayList<>();
         for (Run run : runs) {
@@ -152,19 +134,19 @@ public class SortOperator extends QueryOperator {
         for (int i = 0; i < iterators.size(); i++) {
             Iterator<Record> iter = iterators.get(i);
             if (iter.hasNext()) {
-                pq.add(new RunMergeEntry(iter.next(), i));
+                pq.add(new Pair<>(iter.next(), i));
             }
         }
         // 5. poll the smallest record into the last result merged run
         // after poll, check it correspond runIndex has next records or not,
-        // if has, add this new RunMergeEntry to priorityQueue
+        // if has, add this new Pair to priorityQueue
         while(!pq.isEmpty()) {
-            RunMergeEntry minEntry = pq.poll();
-            mergedRun.add(minEntry.record);
+            Pair<Record, Integer> minEntry = pq.poll();
+            mergedRun.add(minEntry.getFirst());
 
-            Iterator<Record> srcIter = iterators.get(minEntry.runIndex);
+            Iterator<Record> srcIter = iterators.get(minEntry.getSecond());
             if (srcIter.hasNext()) {
-                pq.add(new RunMergeEntry(srcIter.next(), minEntry.runIndex));
+                pq.add(new Pair<>(srcIter.next(), minEntry.getSecond()));
             }
         }
         // 6. return the final if priorityQueue can not pop anything
