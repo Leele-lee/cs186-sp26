@@ -84,6 +84,8 @@ public class SortOperator extends QueryOperator {
      *
      * @return a single sorted run containing all the records from the input
      * iterator
+     *
+     * 接收一个装有最多 B 页数据的未排序 `Run`，在内存中对其进行排序，输出一个新的有序 Run。
      */
     public Run sortRun(Iterator<Record> records) {
         // TODO(proj3_part1): implement
@@ -98,9 +100,25 @@ public class SortOperator extends QueryOperator {
     }
 
     /**
+     * hold Pair<Record, Integer> objects where a Pair (r, i) is the
+     * Record r with the smallest value you are sorting on currently unmerged
+     * from run i. `i` can be useful to locate which record to add to the queue
+     * next after the smallest element is removed.
+     */
+    private class RunMergeEntry {
+        Record record;
+        int runIndex;
+
+        RunMergeEntry(Record record, int runIndex) {
+            this.record = record;
+            this.runIndex = runIndex;
+        }
+    }
+
+    /**
      * Given a list of sorted runs, returns a new run that is the result of
      * merging the input runs. You should use a Priority Queue (java.util.PriorityQueue)
-     * to determine which record should be should be added to the output run
+     * to determine which record should be added to the output run
      * next.
      *
      * You are NOT allowed to have more than runs.size() records in your
@@ -111,11 +129,46 @@ public class SortOperator extends QueryOperator {
      * next after the smallest element is removed.
      *
      * @return a single sorted run obtained by merging the input runs
+     *
+     * 接收一个至多包含 B-1 个有序 Run 的列表，将它们合并为 1 个 更长的新有序 Run
      */
     public Run mergeSortedRuns(List<Run> runs) {
         assert (runs.size() <= this.numBuffers - 1);
         // TODO(proj3_part1): implement
-        return null;
+
+        // 1. build a return merged run
+        Run mergedRun = makeRun();
+
+        // 2. build a priority queue that use RecordComparator and store RunMergeEntry(record, runIndex)
+        PriorityQueue<RunMergeEntry> pq = new PriorityQueue<>(
+                (a, b) -> new RecordComparator().compare(a.record, b.record)
+        );
+        // 3. change the list of runs to list of iterators
+        List<Iterator<Record>> iterators = new ArrayList<>();
+        for (Run run : runs) {
+            iterators.add(run.iterator());
+        }
+        // 4. put the first record of each iterator to priorityQueue
+        for (int i = 0; i < iterators.size(); i++) {
+            Iterator<Record> iter = iterators.get(i);
+            if (iter.hasNext()) {
+                pq.add(new RunMergeEntry(iter.next(), i));
+            }
+        }
+        // 5. poll the smallest record into the last result merged run
+        // after poll, check it correspond runIndex has next records or not,
+        // if has, add this new RunMergeEntry to priorityQueue
+        while(!pq.isEmpty()) {
+            RunMergeEntry minEntry = pq.poll();
+            mergedRun.add(minEntry.record);
+
+            Iterator<Record> srcIter = iterators.get(minEntry.runIndex);
+            if (srcIter.hasNext()) {
+                pq.add(new RunMergeEntry(srcIter.next(), minEntry.runIndex));
+            }
+        }
+        // 6. return the final if priorityQueue can not pop anything
+        return mergedRun;
     }
 
     /**
