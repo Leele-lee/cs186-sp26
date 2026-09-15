@@ -172,10 +172,28 @@ public class SortOperator extends QueryOperator {
      * the result of merging less than (numBuffers - 1) runs.
      *
      * @return a list of sorted runs obtained by merging the input runs
+     *
+     * 接收上一轮产生的所有 Runs（可能有几十上百个），按每 B-1 个一组 进行切片，
+     * 调用 mergeSortedRuns，返回这一轮产生的所有新 Runs
      */
     public List<Run> mergePass(List<Run> runs) {
         // TODO(proj3_part1): implement
-        return Collections.emptyList();
+        List<Run> nextPassRuns = new ArrayList<>();
+
+        int bufferSize = numBuffers - 1;
+        // 1. compute the number of runs send to mergeSortedRuns
+        for (int i = 0; i < runs.size(); i += bufferSize) {
+            // 2. If N is not a perfect multiple of (numBuffers - 1) the last sorted run should be
+            // the result of merging less than (numBuffers - 1) runs
+            int end = Math.min(i + bufferSize, runs.size());
+
+            List<Run> runsToMerge = runs.subList(i, end);
+
+            // 3. call mergeSortRuns
+            Run oneMergedRun = mergeSortedRuns(runsToMerge);
+            nextPassRuns.add(oneMergedRun);
+        }
+        return nextPassRuns;
     }
 
     /**
