@@ -124,7 +124,7 @@ public class SortOperator extends QueryOperator {
         Run mergedRun = makeRun();
 
         // 2. build a priority queue that use RecordPairComparator and store Pair(record, runIndex)
-        PriorityQueue<Pair<Record, Integer>> pq = new PriorityQueue<>();
+        PriorityQueue<Pair<Record, Integer>> pq = new PriorityQueue<>(new RecordPairComparator());
         // 3. change the list of runs to list of iterators
         List<Iterator<Record>> iterators = new ArrayList<>();
         for (Run run : runs) {
@@ -203,13 +203,40 @@ public class SortOperator extends QueryOperator {
      *
      * @return a single run containing all of the source operator's records in
      * sorted order.
+     *
+     * 串联 Pass 0 和后续所有的 Merge Passes，直到整张表变成 唯一一个完整的有序 Run
      */
     public Run sort() {
         // Iterator over the records of the relation we want to sort
         Iterator<Record> sourceIterator = getSource().iterator();
 
         // TODO(proj3_part1): implement
-        return makeRun(); // TODO(proj3_part1): replace this!
+        List<Run> runs = new ArrayList<>();
+        // 1. first, we use getBlockIterator to get B pages from sourceIterator
+        while (sourceIterator.hasNext()) {
+            BacktrackingIterator<Record> blockIter = getBlockIterator(
+                    sourceIterator,
+                    getSchema(),
+                    numBuffers
+            );
+
+            // 2. for each block we get from step 1, we call sortRun, and put them to List<Run> runs
+            Run mergedRunPass0 = sortRun(blockIter);
+            runs.add(mergedRunPass0);
+        }
+
+        // 3. while runs.size > 1, we continue call mergePass(runs), until not stasified the condition
+        while (runs.size() > 1) {
+            runs = mergePass(runs);
+        }
+
+        // 4. if the result runs is empty return makeRun()
+        // else return the runs.get(0)
+        if (runs.size() == 0) {
+            return makeRun();
+        } else {
+            return runs.get(0);
+        }
     }
 
     /**
