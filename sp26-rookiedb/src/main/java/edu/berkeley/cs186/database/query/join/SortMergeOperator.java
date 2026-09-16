@@ -165,9 +165,12 @@ public class SortMergeOperator extends JoinOperator {
                     if (cmp == 0) {
                         Record result = leftRecord.concat(rightRecord);
                         rightRecord = rightIterator.hasNext() ? rightIterator.next() : null;
+                        // in case of right already run out but left still has values that equal
+                        // so in this case right must reset and start at mark again to check equal
                         if (rightRecord == null) {
                             rightIterator.reset();
                             rightRecord = rightIterator.next();
+                            marked = false;
                             leftRecord = leftIterator.hasNext() ? leftIterator.next() : null;
                         }
                         return result;
