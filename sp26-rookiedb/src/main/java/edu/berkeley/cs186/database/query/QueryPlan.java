@@ -522,6 +522,7 @@ public class QueryPlan {
             if (!p.tableName.equals(table)) continue;
             boolean indexExists = this.transaction.indexExists(table, p.column);
             boolean canScan = p.operator != PredicateOperator.NOT_EQUALS;
+            // 如果同时满足两个条件——该列存在索引 且 操作符支持索引扫描，就将当前过滤条件在原列表中的下标 i 存入结果中。
             if (indexExists && canScan) result.add(i);
         }
         return result;
@@ -574,10 +575,37 @@ public class QueryPlan {
      * minimum cost operator can be broken arbitrarily.
      */
     public QueryOperator minCostSingleAccess(String table) {
+        // 1. default plan: scan all
         QueryOperator minOp = new SequentialScanOperator(this.transaction, table);
 
         // TODO(proj3_part2): implement
-        return minOp;
+        int minCost = minOp.estimateIOCost();
+
+        int bestPreIndex = -1;
+
+        // 2. check all indexScan and estimate I/O costs
+        List<Integer> eligibleIndices = getEligibleIndexColumns(table);
+        for (int i : eligibleIndices) {
+            SelectPredicate currPre = this.selectPredicates.get(i);
+
+            // build correspond indexScanOperator
+            QueryOperator indexScan = new IndexScanOperator(
+                    this.transaction,
+                    table,
+                    currPre.column,
+                    currPre.operator,
+                    currPre.value
+            );
+
+            int cost = indexScan.estimateIOCost();
+            if (cost < minCost) {
+                minCost = cost;
+                minOp = indexScan;
+                bestPreIndex = i;
+            }
+        }
+        // 3. push down selection to the final best plan
+        return addEligibleSelections(minOp, bestPreIndex);
     }
 
     // Task 6: Join Selection //////////////////////////////////////////////////
