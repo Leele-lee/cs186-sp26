@@ -674,6 +674,73 @@ public class QueryPlan {
         //      calculate the cheapest join with the new table (the one you
         //      fetched an operator for from pass1Map) and the previously joined
         //      tables. Then, update the result map if needed.
+
+        // 1. outer loop: through over all table set in prevMap
+        for (Map.Entry<Set<String>, QueryOperator> prevEntry : prevMap.entrySet()) {
+            Set<String> prevTableSet = prevEntry.getKey();
+            QueryOperator prevOp = prevEntry.getValue();
+
+            // 2. inner loop: iterate over each join predicate listed in this.joinPredicates
+            for (JoinPredicate  p : this.joinPredicates) {
+                // Get the left side and the right side of the predicate (table name and column)
+                String leftTable = p.leftTable;
+                String rightTable = p.rightTable;
+                String leftCol = p.leftColumn;
+                String rightCol = p.rightColumn;
+
+                String newTable;
+                String newJoinLeftCol;
+                String newJoinRightCol;
+
+                // Case 1: The set contains left table but not right,
+                // pull rightTable into as a new table
+                if (prevTableSet.contains(leftTable) && !prevTableSet.contains(rightTable)) {
+                    newTable = rightTable;
+                    newJoinLeftCol = leftCol;
+                    newJoinRightCol = rightCol;
+                }
+                // Case 2: The set contains right table but not left,
+                // pull leftTable into as a new table
+                else if (prevTableSet.contains(rightTable) && !prevTableSet.contains(leftTable)) {
+                    newTable = leftTable;
+                    // Since the left side of the left-deep tree is always `prevOp` (containing `rightTable`)
+                    // and the right side is always the new single table (`leftTable`),
+                    // when calling `minCostJoinType` in Case 2, the field arguments must be:
+                    // minCostJoinType(prevOp, newTableOp, p.getRightColumn(), p.getLeftColumn()).
+                    newJoinLeftCol = rightCol;
+                    newJoinRightCol = leftCol;
+                }
+                // Case 3: Otherwise, skip this join predicate and continue the loop.
+                else {
+                    continue;
+                }
+
+                // 3. use pass1Map to fetch the best operator plan to access the rightTable
+                QueryOperator newTableOp = pass1Map.get(Collections.singleton(newTable));
+
+                // 4. use minCostJoinType to
+                // calculate the cheapest join with the new table (the one you
+                // fetched an operator for from pass1Map) and the previously joined
+                // tables.
+                QueryOperator currJoinPlan = minCostJoinType(
+                   prevOp,
+                   newTableOp,
+                   newJoinLeftCol,
+                   newJoinRightCol
+                );
+
+                // 5. make new Set which containning the newTable joined
+                Set<String> newTableSet = new HashSet<>(prevTableSet);
+                newTableSet.add(newTable);
+
+                // 6. if this newSet is first appear in result or the newSet has already in result
+                // but it has the lowest cost, we replace the value for that newSet
+                int currCost = currJoinPlan.estimateIOCost();
+                if (!result.containsKey(newTableSet) || currCost < result.get(newTableSet).estimateIOCost()) {
+                    result.put(newTableSet, currJoinPlan);
+                }
+            }
+        }
         return result;
     }
 
