@@ -141,11 +141,16 @@ public class SortMergeOperator extends JoinOperator {
         private Record fetchNextRecord() {
             // TODO(proj3_part1): implement
 
-            // 1. loop this while leftRecord and rightRecord both not null
-            while (leftRecord != null && rightRecord != null) {
+            // 1. loop this until leftRecord is NULL
+            while (leftRecord != null) {
                 // 2. if no mark, we should check l(left value) and r(right value),
                 // advance one step for the smaller one until l == r and set mark at r
                 if (!marked) {
+                    // if unmarked and right table is run out, join is end
+                    if (rightRecord == null) {
+                        return null;
+                    }
+
                     int cmp = compare(leftRecord, rightRecord);
                     if (cmp < 0) {
                         leftRecord = leftIterator.hasNext() ? leftIterator.next() : null;
@@ -159,25 +164,17 @@ public class SortMergeOperator extends JoinOperator {
                         return result;
                     }
                 } else {
-                    // has marked
-                    int cmp = compare(leftRecord, rightRecord);
-                    // 3. if l == r, advance r, return this record
-                    if (cmp == 0) {
+                    // has marked, so previous left and right record is equal
+                    // if rightRecord is not null and equal, advance r
+                    if (rightRecord != null && compare(leftRecord, rightRecord) == 0) {
                         Record result = leftRecord.concat(rightRecord);
                         rightRecord = rightIterator.hasNext() ? rightIterator.next() : null;
-                        // in case of right already run out but left still has values that equal
-                        // so in this case right must reset and start at mark again to check equal
-                        if (rightRecord == null) {
-                            rightIterator.reset();
-                            rightRecord = rightIterator.next();
-                            marked = false;
-                            leftRecord = leftIterator.hasNext() ? leftIterator.next() : null;
-                        }
                         return result;
                     } else {
-                        // 4. if l != r, reset r and advance l, set mark to null
+                        // if rightRecord is null or rightRecord not null but not equal,
+                        // we reset rightRecord and advance l, unmark, and check in next time
                         rightIterator.reset();
-                        rightRecord = rightIterator.next();
+                        rightRecord = rightIterator.hasNext() ? rightIterator.next() : null;
                         leftRecord = leftIterator.hasNext() ? leftIterator.next() : null;
                         marked = false;
                     }
