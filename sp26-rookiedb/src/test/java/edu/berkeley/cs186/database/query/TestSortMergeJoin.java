@@ -219,4 +219,26 @@ public class TestSortMergeJoin {
         }
     }
 
+    @Test
+    public void testEmptyLeftTableSMJ() {
+        d.setWorkMem(5);
+        try (Transaction transaction = d.beginTransaction()) {
+            // 创建左表 0 条数据，右表 100 条数据
+            setSourceOperators(
+                    TestUtils.createSourceWithAllTypes(0),
+                    TestUtils.createSourceWithAllTypes(100),
+                    transaction
+            );
+
+            JoinOperator joinOperator = new SortMergeOperator(
+                    leftSourceOperator, rightSourceOperator, "int", "int",
+                    transaction.getTransactionContext()
+            );
+
+            Iterator<Record> outputIterator = joinOperator.iterator();
+            // 核心断言：必须立刻为 false！
+            assertFalse("Empty left table should yield no records", outputIterator.hasNext());
+        }
+    }
+
 }
