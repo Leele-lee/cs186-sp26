@@ -12,6 +12,35 @@ public enum LockType {
     NL;  // no lock held
 
     /**
+     * This helper method return the index of lockType
+     */
+    private static int getIndex(LockType type) {
+        switch (type) {
+            case NL:  return 0;
+            case IS:  return 1;
+            case IX:  return 2;
+            case S:   return 3;
+            case SIX: return 4;
+            case X:   return 5;
+            default: throw new IllegalArgumentException("Unknown type: " + type);
+        }
+    }
+
+    /**
+     * Build 2 matrix
+     * the order is NL[0], IS[1], IX[2], S[3], SIX[4], X[5]
+     */
+    private static final boolean[][] COMPATIBILITY_MATRIX = new boolean[][] {
+            //         NL     IS     IX    S    SIX    X
+            /* NL  */ {true, true, true, true, true, true},
+            /* IS  */ {true, true, true, true, true, false},
+            /* IX  */ {true, true, true, false, false, false},
+            /* S   */ {true, true, false, true, false, false},
+            /* SIX */ {true, true, false, false, false, false},
+            /* X   */ {true, false, false, false, false, false}
+    };
+
+    /**
      * This method checks whether lock types A and B are compatible with
      * each other. If a transaction can hold lock type A on a resource
      * at the same time another transaction holds lock type B on the same
@@ -22,8 +51,7 @@ public enum LockType {
             throw new NullPointerException("null lock type");
         }
         // TODO(proj4_part1): implement
-
-        return false;
+        return COMPATIBILITY_MATRIX[getIndex(a)][getIndex(b)];
     }
 
     /**
@@ -54,9 +82,60 @@ public enum LockType {
             throw new NullPointerException("null lock type");
         }
         // TODO(proj4_part1): implement
+        // analyse from childLockType perspective
+        // 1. if child is NL, any parentLockType will be okay
+        if (childLockType == NL) {
+            return true;
+        }
+        // 2. switch on childLockType
+        switch(childLockType) {
+            case S:
+            case IS:
+                // parentLockType must be IS or IX
+                return (parentLockType == IS || parentLockType == IX);
 
-        return false;
+            case X:
+            case IX:
+                // parentLockParent must be IX or SIX
+                return (parentLockType == IX || parentLockType == SIX);
+
+            case SIX:
+                // parentLockType must be IX or SIX(?)
+                return (parentLockType == IX || parentLockType == SIX);
+
+            default:
+                return false;
+        }
     }
+
+    /**
+     *  Build a matrix for substitute
+     *  [ X ]  (至高无上：能写全树，能替代一切)
+     *            /     \
+     *           /       \
+     *       [ SIX ]      \
+     *       /     \       \
+     *      /       \       \
+     *    [ S ]    [ IX ]    |
+     *      \        |       /
+     *       \       |      /
+     *        \    [ IS ]  /
+     *         \     |    /
+     *          \    |   /
+     *             [ NL ]  (最底层：任何锁都能替代 NL)
+     *  the order is NL[0], IS[1], IX[2], S[3], SIX[4], X[5]
+     *  row represent substitute
+     *  column represent required
+     */
+    private static final boolean[][] SUBSTITUTION_MATRIX = new boolean[][] {
+            // sub/req NL     IS     IX    S    SIX    X
+            /* NL  */ {true, false, false, false, false, false},
+            /* IS  */ {true, true, false, false, false, false},
+            /* IX  */ {true, true, true, false, false, false},
+            /* S   */ {true, false, false, true, false, false},
+            /* SIX */ {true, true, true, true, true, false},
+            /* X   */ {true, true, true, true, true, true}
+    };
 
     /**
      * This method returns whether a lock can be used for a situation
@@ -69,8 +148,7 @@ public enum LockType {
             throw new NullPointerException("null lock type");
         }
         // TODO(proj4_part1): implement
-
-        return false;
+        return SUBSTITUTION_MATRIX[getIndex(substitute)][getIndex(required)];
     }
 
     /**
