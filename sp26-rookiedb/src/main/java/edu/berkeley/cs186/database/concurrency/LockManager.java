@@ -56,10 +56,25 @@ public class LockManager {
          * conflicts for locks held by transaction with id `except`, which is
          * useful when a transaction tries to replace a lock it already has on
          * the resource.
+         *
+         * “如果我现在要把 lockType 这把锁发给一个事务，当前资源上现有的其他锁，会不会反对？”
+         * except 代表“特批豁免权”的事务 ID。
+         * 当检查冲突时：“检查所有人是否与我冲突，但除了（except）我自己手里的锁！”
          */
         public boolean checkCompatible(LockType lockType, long except) {
             // TODO(proj4_part1): implement
-            return false;
+            for (Lock lock : this.locks) {
+                // 核心：如果这把锁就是属于被豁免的事务（比如自己），直接忽视！
+                if (lock.transactionNum == except) {
+                    continue;
+                }
+                // 对于别人的锁，必须严格检查兼容性！
+                // 只要有任何一把锁和我想申请的 lockType 冲突，就说明不能放行
+                if (!LockType.compatible(lockType, lock.lockType)) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         /**
@@ -69,7 +84,47 @@ public class LockManager {
          */
         public void grantOrUpdateLock(Lock lock) {
             // TODO(proj4_part1): implement
-            return;
+            Long transNum = lock.transactionNum;
+            // must update lock info in ResourceEntry locks and transactionLocks
+            // 1. first deal with locks in ResourceEntry
+            int existingIndex = -1;
+            for (int i = 0; i < this.locks.size(); i++) {
+                // if in the resource lock has a lock that has the same transaction id as lock's
+                // we should update lock
+                if (this.locks.get(i).transactionNum.equals(lock.transactionNum)) {
+                    existingIndex = i;
+                    break;
+                }
+            }
+            // if lock is a old lock, we just update
+            if (existingIndex != -1) {
+                this.locks.set(existingIndex, lock);
+            } else {
+              // lock is a new lock, we just add
+                this.locks.add(lock);
+            }
+
+            // 2. then deal with transactionLocks in LockManager
+            int userLockIndex = -1;
+            List<Lock> userLocks = LockManager.this.transactionLocks.getOrDefault(transNum, new ArrayList<>());
+
+            for (int i = 0; i < userLocks.size(); i++) {
+                // if the transaction has the same lock name as the lock
+                // update old lock
+                if (userLocks.get(i).name.equals(lock.name)) {
+                    userLockIndex = i;
+                    break;
+                }
+            }
+            // if the lock is already in userLocks, updateold lock
+            if (userLockIndex != -1) {
+                userLocks.set(userLockIndex, lock);
+            } else {
+                // otherwise, add new lock to userLock
+                userLocks.add(lock);
+            }
+            // update transactionLocks map for key transNum
+            LockManager.this.transactionLocks.put(transNum, userLocks);
         }
 
         /**
