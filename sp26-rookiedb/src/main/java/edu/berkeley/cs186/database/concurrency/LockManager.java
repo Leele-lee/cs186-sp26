@@ -133,7 +133,23 @@ public class LockManager {
          */
         public void releaseLock(Lock lock) {
             // TODO(proj4_part1): implement
-            return;
+            Long transNum = lock.transactionNum;
+            // 1. delete lock in this.locks
+            Iterator<Lock> iterLock = this.locks.iterator();
+            while (iterLock.hasNext()) {
+                Lock l = iterLock.next();
+                if (l.transactionNum.equals(transNum)) {
+                    iterLock.remove();
+                    break;
+                }
+            }
+            // 2. delete lock in transactionLocks
+            List<Lock> userLocks = LockManager.this.transactionLocks.get(transNum);
+            if (userLocks != null) {
+                userLocks.removeIf(l -> l.name.equals(lock.name));
+            }
+            // 3. call processQueue
+            processQueue();
         }
 
         /**
