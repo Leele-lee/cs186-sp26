@@ -158,6 +158,11 @@ public class LockManager {
          */
         public void addToQueue(LockRequest request, boolean addFront) {
             // TODO(proj4_part1): implement
+            if (addFront) {
+                this.waitingQueue.addFirst(request);
+            } else {
+                this.waitingQueue.addLast(request);
+            }
             return;
         }
 
@@ -170,7 +175,27 @@ public class LockManager {
             Iterator<LockRequest> requests = waitingQueue.iterator();
 
             // TODO(proj4_part1): implement
-            return;
+            // 1. while loop for waitingQueue until no element in there
+            while (requests.hasNext()) {
+                LockRequest req = requests.next();
+                // 2. check compatible for each element in queue
+                if (checkCompatible(req.lock.lockType, req.lock.transactionNum)) {
+                    // 3. if compatible for this element, grandOrUpdate for this lock request
+                    grantOrUpdateLock(req.lock);
+                    // 3.5 if has old lock need to release, release here
+                    if (req.releasedLocks != null) {
+                        for (Lock l : req.releasedLocks) {
+                            LockManager.this.release(req.transaction, l.name);
+                        }
+                    }
+                    // 3.6 unblock the transaction that request the lock
+                    req.transaction.unblock();
+                } else {
+                    // 4. if not compatible, direct break and return
+                    break;
+                }
+
+            }
         }
 
         /**
@@ -178,6 +203,11 @@ public class LockManager {
          */
         public LockType getTransactionLockType(long transaction) {
             // TODO(proj4_part1): implement
+            for (Lock l : this.locks) {
+                if (l.transactionNum == transaction) {
+                    return l.lockType;
+                }
+            }
             return LockType.NL;
         }
 
