@@ -279,18 +279,18 @@ public class LockManager {
                 }
             }
 
-            Lock nl = new Lock(name, lockType, transaction.getTransNum());
+            Lock newLock = new Lock(name, lockType, transaction.getTransNum());
             // 2. check new lock's compatible, if compatible, call grantOrUpdate
             // and release all lock in releaseNames
             if (resourceEntry.checkCompatible(lockType, transaction.getTransNum())) {
-                resourceEntry.grantOrUpdateLock(nl);
+                resourceEntry.grantOrUpdateLock(newLock);
                 for (ResourceName rName : releaseNames) {
                     release(transaction, rName); // call the outer release
                 }
             } else {
                 // 3. if not compatible, put the new lock in the front of the queue,
                 // prepare to sleep(block) and call block outside of this synchronized block section
-                LockRequest request = new LockRequest(transaction, nl);
+                LockRequest request = new LockRequest(transaction, newLock);
                 resourceEntry.addToQueue(request, true);
 
                 transaction.prepareBlock();
@@ -322,7 +322,31 @@ public class LockManager {
         // synchronized block elsewhere if you wish.
         boolean shouldBlock = false;
         synchronized (this) {
-            
+            ResourceEntry resourceEntry = getResourceEntry(name);
+            long transactionNum = transaction.getTransNum();
+
+            // 1. error checking
+            if (resourceEntry.getTransactionLockType(transactionNum) != LockType.NL) {
+                throw new DuplicateLockRequestException("Already hold lock on " + name);
+            }
+
+            // 2. can acquire a lock when:
+            // there is no other clock in waiting queue for this resource,
+            // and this new lock is compatible with exist locks in this resource
+            Lock newLock =new Lock(name, lockType, transactionNum);
+
+            if (resourceEntry.waitingQueue.isEmpty()
+                    && resourceEntry.checkCompatible(lockType, transactionNum)) {
+                resourceEntry.grantOrUpdateLock(newLock);
+
+            } else {
+                // 3. is not satisfy the two requirement, put the lock at back of the queue
+                // and prepare sleep(block)
+                resourceEntry.addToQueue(new LockRequest(transaction, newLock), false);
+
+                transaction.prepareBlock();
+                shouldBlock = true;
+            }
         }
         if (shouldBlock) {
             transaction.block();
