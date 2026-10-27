@@ -368,7 +368,23 @@ public class LockManager {
         // TODO(proj4_part1): implement
         // You may modify any part of this method.
         synchronized (this) {
-            
+            ResourceEntry resourceEntry = getResourceEntry(name);
+            long transactionNum = transaction.getTransNum();
+            // 1. checking error
+            if (resourceEntry.getTransactionLockType(transactionNum) == LockType.NL) {
+                throw new NoLockHeldException("No lock on " + name + "is held by transaction" + transactionNum);
+            }
+            // 2. call release lock
+            Lock targetLock = null;
+            for (Lock l : getLocks(name)) {
+                if (l.transactionNum == transactionNum) {
+                    targetLock = l;
+                    break;
+                }
+            }
+            if (targetLock != null) {
+                resourceEntry.releaseLock(targetLock);
+            }
         }
     }
 
