@@ -416,7 +416,39 @@ public class LockManager {
         // You may modify any part of this method.
         boolean shouldBlock = false;
         synchronized (this) {
-            
+            ResourceEntry resourceEntry = getResourceEntry(name);
+            long transactionNum = transaction.getTransNum();
+            LockType oldLockType = resourceEntry.getTransactionLockType(transactionNum);
+            // 1. first, error checking
+            // 1.2 throws DuplicateLockRequestException if `transaction` already has a
+            // newLockType lock on name
+            if (oldLockType == newLockType) {
+                throw new DuplicateLockRequestException("Already has same lock type for" + name);
+            }
+            // 1.4 throws NoLockHeldException if `transaction` has no lock on `name`
+            if (oldLockType == LockType.NL) {
+                throw new NoLockHeldException("Transaction has no lock on" + name);
+            }
+            // 1.6 throws InvalidLockException if the requested lock type is not a
+            // promotion. A promotion from lock type A to lock type B is valid if and
+            // only if B is substitutable for A, and B is not equal to A.
+            if (!LockType.substitutable(newLockType, oldLockType)) {
+                throw new InvalidLockException("NewLockType is not substitutable for oldLockType for " + name);
+            }
+
+            // 2. check new lock type is compatible with other locks on resource
+            // if compatible, call grantOrUpdateLock
+            // if not compatible, put request at the front of queue and prepare block
+            Lock newLock =  new Lock(name, newLockType, transactionNum);
+            if (resourceEntry.checkCompatible(newLockType, transactionNum)) {
+                resourceEntry.grantOrUpdateLock(newLock);
+            } else {
+                resourceEntry.addToQueue(new LockRequest(transaction, newLock), true);
+
+                transaction.prepareBlock();
+                shouldBlock = true;
+            }
+
         }
         if (shouldBlock) {
             transaction.block();
