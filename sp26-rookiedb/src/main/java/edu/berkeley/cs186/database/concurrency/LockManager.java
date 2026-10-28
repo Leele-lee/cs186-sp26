@@ -265,7 +265,7 @@ public class LockManager {
             ResourceEntry resourceEntry = getResourceEntry(name);
             // 1. first do error checking
             // 1.5 first check DuplicateLockRequestException
-            LockType currLockType = resourceEntry.getTransactionLockType(transaction.getTransNum());
+            LockType currLockType = getLockType(transaction, name);
             if (currLockType != LockType.NL && !releaseNames.contains(name)) {
                 throw new DuplicateLockRequestException("Already hold lock on " + name);
             }
@@ -274,7 +274,7 @@ public class LockManager {
             for (ResourceName rName : releaseNames) {
                 ResourceEntry rlResourceEntry = getResourceEntry(rName);
 
-                if (rlResourceEntry.getTransactionLockType(transaction.getTransNum()) != LockType.NL) {
+                if (getLockType(transaction, rName) != LockType.NL) {
                     throw new NoLockHeldException("Don't exsit Lock " + rName + " in transaction");
                 }
             }
@@ -326,7 +326,7 @@ public class LockManager {
             long transactionNum = transaction.getTransNum();
 
             // 1. error checking
-            if (resourceEntry.getTransactionLockType(transactionNum) != LockType.NL) {
+            if (getLockType(transaction, name) != LockType.NL) {
                 throw new DuplicateLockRequestException("Already hold lock on " + name);
             }
 
@@ -371,7 +371,7 @@ public class LockManager {
             ResourceEntry resourceEntry = getResourceEntry(name);
             long transactionNum = transaction.getTransNum();
             // 1. checking error
-            if (resourceEntry.getTransactionLockType(transactionNum) == LockType.NL) {
+            if (getLockType(transaction, name) == LockType.NL) {
                 throw new NoLockHeldException("No lock on " + name + "is held by transaction" + transactionNum);
             }
             // 2. call release lock
@@ -418,7 +418,7 @@ public class LockManager {
         synchronized (this) {
             ResourceEntry resourceEntry = getResourceEntry(name);
             long transactionNum = transaction.getTransNum();
-            LockType oldLockType = resourceEntry.getTransactionLockType(transactionNum);
+            LockType oldLockType = getLockType(transaction, name);
             // 1. first, error checking
             // 1.2 throws DuplicateLockRequestException if `transaction` already has a
             // newLockType lock on name
