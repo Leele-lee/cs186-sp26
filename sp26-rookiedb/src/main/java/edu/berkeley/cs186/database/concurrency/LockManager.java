@@ -462,7 +462,8 @@ public class LockManager {
     public synchronized LockType getLockType(TransactionContext transaction, ResourceName name) {
         // TODO(proj4_part1): implement
         ResourceEntry resourceEntry = getResourceEntry(name);
-        return LockType.NL;
+        LockType lockType = resourceEntry.getTransactionLockType(transaction.getTransNum());
+        return lockType;
     }
 
     /**
