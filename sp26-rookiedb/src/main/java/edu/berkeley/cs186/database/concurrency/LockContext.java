@@ -97,7 +97,46 @@ public class LockContext {
             throws InvalidLockException, DuplicateLockRequestException {
         // TODO(proj4_part2): implement
 
-        return;
+        // 1. error checking
+        // 1.2 check parentLock is legal or not by using canBeParentLock, return valid error
+        LockContext currParent = this.parent;
+        if (currParent != null) {
+            LockType parentType = currParent.getExplicitLockType(transaction);
+            if (!LockType.canBeParentLock(parentType, lockType)) {
+                throw new InvalidLockException("Parent lock is not sufficient for child lock!");
+            }
+        }
+        // 1.4 check all ancestors has SIX or not, if has and acquire IS/S, return valid error
+        while (currParent != null) {
+            if (currParent.getExplicitLockType(transaction) == LockType.SIX) {
+                if (lockType == LockType.S  || lockType == LockType.IS) {
+                    throw new InvalidLockException("Redundant lock under SIX ancestor!");
+                }
+            }
+            currParent = currParent.parent;
+        }
+
+        // 1.6 DuplicateLockRequestException if a lock is already held by the transaction.
+        ResourceName rname = this.getResourceName();
+        if (this.lockman.getLockType(transaction, rname) != LockType.NL) {
+            throw new DuplicateLockRequestException("Lock is already held by the transaction");
+        }
+
+        // 1.8 UnsupportedOperationException if context is readonly.
+        if (this.readonly) {
+            throw new UnsupportedOperationException("Context is read only");
+        }
+
+        // 2. call lockman.acquire
+        this.lockman.acquire(transaction, rname, lockType);
+
+        // 3. update parent's numChildLocks
+        long transactionNum = transaction.getTransNum();
+        if (this.parent != null) {
+            this.parent.numChildLocks.put(transactionNum,
+                    this.numChildLocks.getOrDefault(transactionNum, 0) + 1);
+
+        }
     }
 
     /**
