@@ -154,7 +154,36 @@ public class LockContext {
             throws NoLockHeldException, InvalidLockException {
         // TODO(proj4_part2): implement
 
-        return;
+        // 1. first error checking
+        // 1.2 throws UnsupportedOperationException if context is readonly
+        if (this.readonly) {
+            throw new UnsupportedOperationException("Context is read only");
+        }
+
+        // 1.4 throws NoLockHeldException if no lock on `name` is held by `transaction`
+        ResourceName rname = this.getResourceName();
+        if (this.lockman.getLockType(transaction, rname) == LockType.NL) {
+            throw new NoLockHeldException("No the lock in transaction");
+        }
+
+        // 1.6 throws InvalidLockException if the lock cannot be released because
+        // doing so would violate multigranularity locking constraints
+        long transNum = transaction.getTransNum();
+
+        // if has child that been locked, can not release this lock
+        int childLockCount = this.numChildLocks.getOrDefault(transNum, 0);
+        if (childLockCount > 0) {
+            throw new InvalidLockException("Break multigranularity locking constraints. " +
+                    "Cannot release parent lock while child locks are still active!");
+        }
+
+        // 2. call lockman.release
+        this.lockman.release(transaction, this.getResourceName());
+        // 3. update parent's numChildLocks
+        if (this.parent != null) {
+            int currCount = this.parent.numChildLocks.getOrDefault(transNum, 1);
+            this.parent.numChildLocks.put(transNum, Math.max(0, currCount - 1));
+        }
     }
 
     /**
