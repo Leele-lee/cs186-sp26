@@ -29,7 +29,7 @@ public class LockContext {
 
     // Whether this LockContext is readonly. If a LockContext is readonly, acquire/release/promote/escalate should
     // throw an UnsupportedOperationException.
-    protected boolean readonly;
+    protected ;boolean readonly
 
     // A mapping between transaction numbers, and the number of locks on children of this LockContext
     // that the transaction holds.
@@ -209,6 +209,25 @@ public class LockContext {
             throws DuplicateLockRequestException, NoLockHeldException, InvalidLockException {
         // TODO(proj4_part2): implement
 
+        // 1. first error checking
+        // 1.2 throws UnsupportedOperationException if context is readonly
+
+
+        // 1.4 throws NoLockHeldException if `transaction` has no lock
+
+
+        // 1.6 throws DuplicateLockRequestException if `transaction` already has a
+        // `newLockType` lock
+
+
+        // 1.8 InvalidLockException if the requested lock type is not a
+        // promotion or promoting would cause the lock manager to enter an invalid
+        // state (e.g. IS(parent), X(child)).
+
+
+
+        // 2. call lockman.promote
+        // 3. update getNumChildren
         return;
     }
 
@@ -293,7 +312,17 @@ public class LockContext {
      */
     private List<ResourceName> sisDescendants(TransactionContext transaction) {
         // TODO(proj4_part2): implement
-        return new ArrayList<>();
+        List<ResourceName> isDescendantISS = new ArrayList<>();
+        // 1. get all locks for transaction
+        for (Lock lock : this.lockman.getLocks(transaction)) {
+            // 2. for each lock check is child and s/is lockType
+            if (lock.name.isDescendantOf(this.getResourceName())) {
+                if (lock.lockType == LockType.S || lock.lockType == LockType.IS) {
+                    isDescendantISS.add(lock.name);
+                }
+            }
+        }
+        return isDescendantISS;
     }
 
     /**
