@@ -224,6 +224,8 @@ public class LockContext {
         // promotion or promoting would cause the lock manager to enter an invalid
         // state (e.g. IS(parent), X(child)).
 
+        // if has
+
 
 
         // 2. call lockman.promote
@@ -300,6 +302,15 @@ public class LockContext {
      */
     private boolean hasSIXAncestor(TransactionContext transaction) {
         // TODO(proj4_part2): implement
+        // find all locks for this transaction
+        LockContext parentContext =  this.parent;
+
+        while (parentContext != null) {
+            if (parentContext.getExplicitLockType(transaction) == LockType.SIX) {
+                return true;
+            }
+            parentContext = parentContext.parent;
+        }
         return false;
     }
 
