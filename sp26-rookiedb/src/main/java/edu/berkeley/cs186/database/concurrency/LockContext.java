@@ -251,16 +251,16 @@ public class LockContext {
 
         // if has an ancestor is SIX, newLockType can not be SIX
         if (this.hasSIXAncestor(transaction)) {
-            if (newLockType == LockType.SIX) {
-                throw new InvalidLockException("if has an ancestor is SIX, newLockType can not be SIX");
+            if (newLockType == LockType.SIX || newLockType == LockType.IS || newLockType == LockType.S) {
+                throw new InvalidLockException("if has an ancestor is SIX, newLockType can not be SIX/IS/S");
             }
         }
 
         long transNum = transaction.getTransNum();
         // Promote `transaction`'s lock to `newLockType`. For promotion to SIX from
-        // IS/IX, all S and IS locks on descendants must be simultaneously released.
+        // S/IS/IX, all S and IS locks on descendants must be simultaneously released.
         if (newLockType == LockType.SIX) {
-            if (lockType == LockType.S || lockType == LockType.IS) {
+            if (lockType == LockType.S || lockType == LockType.IS || lockType == LockType.IX) {
                 this.lockman.acquireAndRelease(transaction, rname, newLockType
                         , this.sisDescendants(transaction));
                 // all child lock release, need clear up current numChildLocks!
