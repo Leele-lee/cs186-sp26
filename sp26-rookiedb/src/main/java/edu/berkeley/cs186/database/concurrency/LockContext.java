@@ -1,6 +1,7 @@
 package edu.berkeley.cs186.database.concurrency;
 
 import edu.berkeley.cs186.database.TransactionContext;
+import sun.lwawt.macosx.CFRetainedResource;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -29,7 +30,7 @@ public class LockContext {
 
     // Whether this LockContext is readonly. If a LockContext is readonly, acquire/release/promote/escalate should
     // throw an UnsupportedOperationException.
-    protected ;boolean readonly
+    protected boolean readonly;
 
     // A mapping between transaction numbers, and the number of locks on children of this LockContext
     // that the transaction holds.
@@ -209,28 +210,66 @@ public class LockContext {
             throws DuplicateLockRequestException, NoLockHeldException, InvalidLockException {
         // TODO(proj4_part2): implement
 
+        ResourceName rname = this.getResourceName();
         // 1. first error checking
         // 1.2 throws UnsupportedOperationException if context is readonly
-
+        if (this.readonly) {
+            throw new UnsupportedOperationException("context is readonly");
+        }
 
         // 1.4 throws NoLockHeldException if `transaction` has no lock
-
+        //ResourceName rname = this.getResourceName();
+        //LockType lockType = this.lockman.getLockType(transaction, rname);
+        LockType lockType = getExplicitLockType(transaction);
+        if (lockType == LockType.NL) {
+            throw new NoLockHeldException("Transaction has no lock");
+        }
 
         // 1.6 throws DuplicateLockRequestException if `transaction` already has a
         // `newLockType` lock
-
+        if (lockType == newLockType) {
+            throw new DuplicateLockRequestException("Transaction already has a newLockType lock");
+        }
 
         // 1.8 InvalidLockException if the requested lock type is not a
-        // promotion or promoting would cause the lock manager to enter an invalid
+        // promotion. A promotion from lock type A to lock
+        // type B is valid if B is substitutable for A and B is not equal to A.
+        if (!LockType.substitutable(newLockType, lockType)) {
+            throw new InvalidLockException("Requested lock type is not promotion");
+        }
+
+        // or promoting would cause the lock manager to enter an invalid
         // state (e.g. IS(parent), X(child)).
+        // check parent satisfy all not
+        if (this.parent != null) {
+            LockType parentLockType = this.parentContext().getExplicitLockType(transaction);
+            if (!LockType.canBeParentLock(parentLockType, newLockType)) {
+                throw new InvalidLockException("Promoting to " + newLockType  +
+                        "violates MGL constraints with parent lock: " + parentLockType);
+            }
+        }
 
-        // if has
+        // if has an ancestor is SIX, newLockType can not be SIX
+        if (this.hasSIXAncestor(transaction)) {
+            if (newLockType == LockType.SIX) {
+                throw new InvalidLockException("if has an ancestor is SIX, newLockType can not be SIX");
+            }
+        }
 
-
-
-        // 2. call lockman.promote
-        // 3. update getNumChildren
-        return;
+        long transNum = transaction.getTransNum();
+        // Promote `transaction`'s lock to `newLockType`. For promotion to SIX from
+        // IS/IX, all S and IS locks on descendants must be simultaneously released.
+        if (newLockType == LockType.SIX) {
+            if (lockType == LockType.S || lockType == LockType.IS) {
+                this.lockman.acquireAndRelease(transaction, rname, newLockType
+                        , this.sisDescendants(transaction));
+                // all child lock release, need clear up current numChildLocks!
+                this.numChildLocks.put(transNum, 0);
+            }
+        } else {
+            // 2. call lockman.promote
+            this.lockman.promote(transaction, rname, newLockType);
+        }
     }
 
     /**
@@ -279,6 +318,8 @@ public class LockContext {
     public LockType getExplicitLockType(TransactionContext transaction) {
         if (transaction == null) return LockType.NL;
         // TODO(proj4_part2): implement
+        ResourceName rname = this.getResourceName();
+        LockType lockType = this.lockman.getLockType(transaction, rname);
         return LockType.NL;
     }
 
