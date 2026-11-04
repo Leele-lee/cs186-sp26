@@ -119,7 +119,7 @@ public class LockContext {
 
         // 1.6 DuplicateLockRequestException if a lock is already held by the transaction.
         ResourceName rname = this.getResourceName();
-        if (this.lockman.getLockType(transaction, rname) != LockType.NL) {
+        if (this.getExplicitLockType(transaction) != LockType.NL) {
             throw new DuplicateLockRequestException("Lock is already held by the transaction");
         }
 
@@ -162,8 +162,8 @@ public class LockContext {
         }
 
         // 1.4 throws NoLockHeldException if no lock on `name` is held by `transaction`
-        ResourceName rname = this.getResourceName();
-        if (this.lockman.getLockType(transaction, rname) == LockType.NL) {
+        //ResourceName rname = this.getResourceName();
+        if (this.getExplicitLockType(transaction) == LockType.NL) {
             throw new NoLockHeldException("No the lock in transaction");
         }
 
@@ -218,8 +218,6 @@ public class LockContext {
         }
 
         // 1.4 throws NoLockHeldException if `transaction` has no lock
-        //ResourceName rname = this.getResourceName();
-        //LockType lockType = this.lockman.getLockType(transaction, rname);
         LockType lockType = getExplicitLockType(transaction);
         if (lockType == LockType.NL) {
             throw new NoLockHeldException("Transaction has no lock");
@@ -307,8 +305,45 @@ public class LockContext {
      */
     public void escalate(TransactionContext transaction) throws NoLockHeldException {
         // TODO(proj4_part2): implement
+        // 1. first check error case
+        // UnsupportedOperationException if context is readonly
+        if (this.readonly) {
+            throw new UnsupportedOperationException("context is readonly");
+        }
+        // NoLockHeldException if `transaction` has no lock at this level
+        if (this.getExplicitLockType(transaction) == LockType.NL) {
+            throw new NoLockHeldException(transaction.getTransNum() + " has no lock at this level");
+        }
 
-        return;
+        // 2. find all descend locks for current context level belongs to current transaction
+        // and add it to toRelease list.
+        // if any lock has lockType IX or X, we should escalate to X
+        ResourceName rname = this.getResourceName();
+        List<ResourceName> toRelease = new ArrayList<>();
+        boolean needExclusive = false;
+        LockType targetLockType;
+
+        for (Lock lock : this.lockman.getLocks(transaction)) {
+            ResourceName childName = lock.name;
+            if (childName.isDescendantOf(rname)) {
+                toRelease.add(childName);
+
+                if (lock.lockType == LockType.IX || lock.lockType == LockType.X) {
+                    needExclusive = true;
+                }
+            }
+        }
+
+        if (needExclusive) {
+            targetLockType = LockType.X;
+        } else {
+            targetLockType = LockType.S;
+        }
+
+        // 3. call acquireAndRelease to escalate and release, don't forget to clear up countChildNum
+        this.lockman.acquireAndRelease(transaction, rname, targetLockType, toRelease);
+        long transNum = transaction.getTransNum();
+        this.numChildLocks.put(transNum, 0);
     }
 
     /**
