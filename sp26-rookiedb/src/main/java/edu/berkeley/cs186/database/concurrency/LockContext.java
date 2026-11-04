@@ -354,8 +354,7 @@ public class LockContext {
         if (transaction == null) return LockType.NL;
         // TODO(proj4_part2): implement
         ResourceName rname = this.getResourceName();
-        LockType lockType = this.lockman.getLockType(transaction, rname);
-        return LockType.NL;
+        return this.lockman.getLockType(transaction, rname);
     }
 
     /**
@@ -367,6 +366,35 @@ public class LockContext {
     public LockType getEffectiveLockType(TransactionContext transaction) {
         if (transaction == null) return LockType.NL;
         // TODO(proj4_part2): implement
+        // 1. first check the lock type at current level we have, if X/S/SIX we direct return
+        LockType currLockType = this.getExplicitLockType(transaction);
+        if (currLockType == LockType.X || currLockType == LockType.S || currLockType == LockType.SIX) {
+            return currLockType;
+        }
+
+        // 2. if not have these locks, continue check parent's lock type until at top level or
+        // find a parent that has these locks.
+        LockContext parentContext = this.parent;
+        boolean parentHasS = false;
+
+        while (parentContext != null) {
+            LockType parentLockType = parent.getExplicitLockType(transaction);
+            if (parentLockType == LockType.X) {
+                return LockType.X;
+            } else if (parentLockType == LockType.S) {
+                parentHasS = true;
+            } else if (parentLockType == LockType.SIX) {
+                return LockType.S;
+            }
+            parentContext = parentContext.parentContext();
+        }
+        // if parent is not intend lock, direct return parent lock, X/S
+        // if parent is intend lock, SIX should return S, IS/IX don't consider as effectiveLock
+        // should return NL.
+        if (parentHasS) {
+            return LockType.S;
+        }
+
         return LockType.NL;
     }
 
