@@ -2,6 +2,10 @@ package edu.berkeley.cs186.database.concurrency;
 
 import edu.berkeley.cs186.database.TransactionContext;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
 /**
  * LockUtil is a declarative layer which simplifies multigranularity lock
  * acquisition for the user (you, in the last task of Part 2). Generally
@@ -79,7 +83,6 @@ public class LockUtil {
         } else {
             lockContext.promote(transaction, LockType.X);
         }
-
     }
 
     // TODO(proj4_part2) add any helper methods you want
@@ -87,15 +90,38 @@ public class LockUtil {
     /**
      * Before acquiring a lock on a child, ensure—from the top down—that all ancestor nodes hold
      * the appropriate intention locks (an IS lock for read requests, or an IX lock for write requests).
-     * @param transactionContext
-     * @param lockContext
-     * @param requestLock
+     * @param transaction transactionContext
+     * @param context LockContext
+     * @param requestLock request lock type either S or X
      */
-    private static void ensureAncestors(TransactionContext transactionContext,
-                                        LockContext lockContext, LockType requestLock) {
+    private static void ensureAncestors(TransactionContext transaction,
+                                        LockContext context, LockType requestLock) {
+        List<LockContext> ancestors = new ArrayList<>();
+        LockContext curr = context.parentContext();
+        while (curr != null) {
+            ancestors.add(curr);
+            curr = curr.parentContext();
+        }
+        // change the order from top to down
+        Collections.reverse(ancestors);
 
+        // from top tp down, set all ancestors to proper intent lock
+        LockType neededIntent = (requestLock == LockType.S) ? LockType.IS : LockType.IX;
 
+        // iterate all locks, if ancestor's effective lock can substitutable for
+        // neededIntent lock we can continue to the next ancestor
+        // if can not substitute, wo look explicit lock and acquire or promote ot
+        // neededIntent lock
+        for (LockContext ancestor : ancestors) {
+            LockType ancestorLock = ancestor.getEffectiveLockType(transaction);
+            if (!LockType.substitutable(ancestorLock, neededIntent)) {
+                LockType explicitAncestorLock = ancestor.getExplicitLockType(transaction);
+                if (explicitAncestorLock == LockType.NL) {
+                    ancestor.acquire(transaction, neededIntent);
+                } else {
+                    ancestor.promote(transaction, neededIntent);
+                }
+            }
+        }
     }
-
-
 }
