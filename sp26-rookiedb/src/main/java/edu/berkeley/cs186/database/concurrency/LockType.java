@@ -117,9 +117,9 @@ public enum LockType {
      *       /     \       \
      *      /       \       \
      *    [ S ]    [ IX ]    |
-     *      \        |       /
-     *       \       |      /
-     *        \    [ IS ]  /
+     *      \   \    |       /
+     *       \   \   |      /
+     *        \   [ IS ]   /
      *         \     |    /
      *          \    |   /
      *             [ NL ]  (最底层：任何锁都能替代 NL)
@@ -132,7 +132,7 @@ public enum LockType {
             /* NL  */ {true, false, false, false, false, false},
             /* IS  */ {true, true, false, false, false, false},
             /* IX  */ {true, true, true, false, false, false},
-            /* S   */ {true, false, false, true, false, false},
+            /* S   */ {true, true, false, true, false, false},
             /* SIX */ {true, true, true, true, true, false},
             /* X   */ {true, true, true, true, true, true}
     };

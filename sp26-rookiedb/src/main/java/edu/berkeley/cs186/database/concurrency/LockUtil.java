@@ -34,7 +34,7 @@ public class LockUtil {
 
         // Do nothing if the transaction or lockContext is null
         TransactionContext transaction = TransactionContext.getTransaction();
-        if (transaction == null || lockContext == null) return;
+        if (transaction == null || lockContext == null || requestType == LockType.NL) return;
 
         // You may find these variables useful
         LockContext parentContext = lockContext.parentContext();
@@ -42,8 +42,60 @@ public class LockUtil {
         LockType explicitLockType = lockContext.getExplicitLockType(transaction);
 
         // TODO(proj4_part2): implement
-        return;
+        // 1. if the current lock type can effectively substitute the requested type
+        // direct return
+        if (LockType.substitutable(effectiveLockType, requestType)) {
+            return;
+        }
+
+        // 2. else try call escalate, if new effective lockType can substitute, direct return
+        try {
+            lockContext.escalate(transaction);
+            LockType lockTypeAfterEscalate = lockContext.getEffectiveLockType(transaction);
+            if (LockType.substitutable(lockTypeAfterEscalate, requestType)) {
+                return;
+            }
+        } catch (Exception e) {
+            // don't do anything
+        }
+
+        // 3. else plan to promote or require lock for current lock, but before that we must
+        // make sure all ancestors has proper intent locks by calling ensureAncestors
+        ensureAncestors(transaction, lockContext, requestType);
+
+        // 4. at last, we actually call acquire or promote
+        LockType explicitLock = lockContext.getExplicitLockType(transaction);
+
+        // check explicit lock, if NL, direct acquire
+        // if current explicit lock has IX and request S, we promote to SIX
+        // if current explicit lock has IS and request S, promote to S
+        // eles situation like from IS/IX/S -> X, promote to X
+        if (explicitLock == LockType.NL) {
+            lockContext.acquire(transaction, requestType);
+        } else if (explicitLock == LockType.IX && requestType == LockType.S) {
+            lockContext.promote(transaction, LockType.SIX);
+        } else if (explicitLock == LockType.IS && requestType == LockType.S) {
+            lockContext.promote(transaction, LockType.S);
+        } else {
+            lockContext.promote(transaction, LockType.X);
+        }
+
     }
 
     // TODO(proj4_part2) add any helper methods you want
+
+    /**
+     * Before acquiring a lock on a child, ensure—from the top down—that all ancestor nodes hold
+     * the appropriate intention locks (an IS lock for read requests, or an IX lock for write requests).
+     * @param transactionContext
+     * @param lockContext
+     * @param requestLock
+     */
+    private static void ensureAncestors(TransactionContext transactionContext,
+                                        LockContext lockContext, LockType requestLock) {
+
+
+    }
+
+
 }
