@@ -935,6 +935,22 @@ public class Database implements AutoCloseable {
         public void close() {
             try {
                 // TODO(proj4_part2)
+                // 1. find all locks acquired by this transaction
+                TransactionContext transaction = getTransaction();
+                List<Lock> releaseLock = lockManager.getLocks(transaction);
+
+                // 2. release all locks from bottom to top using LockContex.release
+                // order the list by length, the longer lock.name is at lower level(at bottom)
+                // so the lock has longer lock.name at the front of the list
+                releaseLock.sort((l1, l2) -> Integer.compare(l2.name.getNames().size(), l1.name.getNames().size()));
+                for (Lock lock : releaseLock) {
+                    LockContext lockContext = LockContext.fromResourceName(lockManager, lock.name);
+                    try {
+                        lockContext.release(transaction);
+                    } catch (Exception e) {
+                        throw e;
+                    }
+                }
                 return;
             } catch (Exception e) {
                 // There's a chance an error message from your release phase
