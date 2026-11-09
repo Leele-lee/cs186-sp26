@@ -89,7 +89,8 @@ public class LockUtil {
 
     /**
      * Before acquiring a lock on a child, ensure—from the top down—that all ancestor nodes hold
-     * the appropriate intention locks (an IS lock for read requests, or an IX lock for write requests).
+     * the appropriate intention locks (an IS lock for read requests, or an IX lock for write requests
+     * or SIX).
      * @param transaction transactionContext
      * @param context LockContext
      * @param requestLock request lock type either S or X
@@ -105,7 +106,7 @@ public class LockUtil {
         // change the order from top to down
         Collections.reverse(ancestors);
 
-        // from top tp down, set all ancestors to proper intent lock
+        // from top to down, set all ancestors to proper intent lock
         LockType neededIntent = (requestLock == LockType.S) ? LockType.IS : LockType.IX;
 
         // iterate all locks, if ancestor's effective lock can substitutable for
@@ -114,6 +115,14 @@ public class LockUtil {
         // neededIntent lock
         for (LockContext ancestor : ancestors) {
             LockType ancestorLock = ancestor.getEffectiveLockType(transaction);
+
+            // if we want to set to IX to ancestor and current ancestor lockType is S
+            // we instead set IX to ancestor we must set IX + S = SIX!
+            // bc promote from S to IX is not allowed bc it is not compatible!
+            if (neededIntent == LockType.IX && ancestorLock == LockType.S) {
+                neededIntent = LockType.SIX;
+            }
+
             if (!LockType.substitutable(ancestorLock, neededIntent)) {
                 LockType explicitAncestorLock = ancestor.getExplicitLockType(transaction);
                 if (explicitAncestorLock == LockType.NL) {

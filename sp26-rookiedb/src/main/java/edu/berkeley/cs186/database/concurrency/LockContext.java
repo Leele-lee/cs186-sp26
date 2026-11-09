@@ -97,6 +97,9 @@ public class LockContext {
     public void acquire(TransactionContext transaction, LockType lockType)
             throws InvalidLockException, DuplicateLockRequestException {
         // TODO(proj4_part2): implement
+        if (lockType == LockType.NL) {
+            throw new InvalidLockException("can not acquire NL lock");
+        }
 
         // 1. error checking
         // 1.2 check parentLock is legal or not by using canBeParentLock, return valid error
@@ -233,7 +236,8 @@ public class LockContext {
         // promotion. A promotion from lock type A to lock
         // type B is valid if B is substitutable for A and B is not equal to A.
         if (!LockType.substitutable(newLockType, lockType)) {
-            throw new InvalidLockException("Requested lock type is not promotion");
+            throw new InvalidLockException("Requested lock type is not promotion, request: " + newLockType
+                    + " old: " + lockType);
         }
 
         // or promoting would cause the lock manager to enter an invalid
@@ -310,8 +314,9 @@ public class LockContext {
         if (this.readonly) {
             throw new UnsupportedOperationException("context is readonly");
         }
+        LockType explicitLock = this.getExplicitLockType(transaction);
         // NoLockHeldException if `transaction` has no lock at this level
-        if (this.getExplicitLockType(transaction) == LockType.NL) {
+        if (explicitLock == LockType.NL) {
             throw new NoLockHeldException(transaction.getTransNum() + " has no lock at this level");
         }
 
@@ -320,7 +325,7 @@ public class LockContext {
         // if any lock has lockType IX or X, we should escalate to X
         ResourceName rname = this.getResourceName();
         List<ResourceName> toRelease = new ArrayList<>();
-        boolean needExclusive = false;
+        boolean needExclusive = (explicitLock == LockType.IX || explicitLock == LockType.X);
         LockType targetLockType;
 
         for (Lock lock : this.lockman.getLocks(transaction)) {

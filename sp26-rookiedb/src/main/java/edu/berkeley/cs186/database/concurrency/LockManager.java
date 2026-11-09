@@ -266,7 +266,8 @@ public class LockManager {
             // 1. first do error checking
             // 1.5 first check DuplicateLockRequestException
             LockType currLockType = getLockType(transaction, name);
-            if (currLockType != LockType.NL && !releaseNames.contains(name)) {
+            //if (currLockType != LockType.NL && !releaseNames.contains(name)) {
+            if (currLockType == lockType) {
                 throw new DuplicateLockRequestException("Already hold lock on " + name);
             }
 
