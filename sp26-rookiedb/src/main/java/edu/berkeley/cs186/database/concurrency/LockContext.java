@@ -1,7 +1,7 @@
 package edu.berkeley.cs186.database.concurrency;
 
 import edu.berkeley.cs186.database.TransactionContext;
-import sun.lwawt.macosx.CFRetainedResource;
+//import sun.lwawt.macosx.CFRetainedResource;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -366,9 +366,9 @@ public class LockContext {
     public LockType getEffectiveLockType(TransactionContext transaction) {
         if (transaction == null) return LockType.NL;
         // TODO(proj4_part2): implement
-        // 1. first check the lock type at current level we have, if X/S/SIX we direct return
+        // 1. first check the lock type at current level we have, if not NL, we direct return
         LockType currLockType = this.getExplicitLockType(transaction);
-        if (currLockType == LockType.X || currLockType == LockType.S || currLockType == LockType.SIX) {
+        if (currLockType != LockType.NL) {
             return currLockType;
         }
 
