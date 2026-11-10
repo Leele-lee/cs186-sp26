@@ -275,7 +275,7 @@ public class LockManager {
             for (ResourceName rName : releaseNames) {
                 ResourceEntry rlResourceEntry = getResourceEntry(rName);
 
-                if (getLockType(transaction, rName) != LockType.NL) {
+                if (getLockType(transaction, rName) == LockType.NL) {
                     throw new NoLockHeldException("Don't exsit Lock " + rName + " in transaction");
                 }
             }
