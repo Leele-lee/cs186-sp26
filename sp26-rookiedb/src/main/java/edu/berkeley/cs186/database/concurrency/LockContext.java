@@ -138,7 +138,7 @@ public class LockContext {
         long transactionNum = transaction.getTransNum();
         if (this.parent != null) {
             this.parent.numChildLocks.put(transactionNum,
-                    this.numChildLocks.getOrDefault(transactionNum, 0) + 1);
+                    this.parent.numChildLocks.getOrDefault(transactionNum, 0) + 1);
 
         }
     }
