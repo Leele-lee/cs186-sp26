@@ -385,7 +385,7 @@ public class LockContext {
         boolean parentHasS = false;
 
         while (parentContext != null) {
-            LockType parentLockType = parent.getExplicitLockType(transaction);
+            LockType parentLockType = parentContext.getExplicitLockType(transaction);
             if (parentLockType == LockType.X) {
                 return LockType.X;
             } else if (parentLockType == LockType.S) {
