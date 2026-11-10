@@ -325,6 +325,7 @@ public class LockContext {
         // if any lock has lockType IX or X, we should escalate to X
         ResourceName rname = this.getResourceName();
         List<ResourceName> toRelease = new ArrayList<>();
+        // first check explicit lockType to set needExclusive
         boolean needExclusive = (explicitLock == LockType.IX || explicitLock == LockType.X);
         LockType targetLockType;
 
@@ -333,19 +334,20 @@ public class LockContext {
             if (childName.isDescendantOf(rname)) {
                 toRelease.add(childName);
 
+                // then check descents lockType to set needExclusive
                 if (lock.lockType == LockType.IX || lock.lockType == LockType.X) {
                     needExclusive = true;
                 }
             }
         }
+        targetLockType = (needExclusive) ? LockType.X : LockType.S;
 
-        if (needExclusive) {
-            targetLockType = LockType.X;
-        } else {
-            targetLockType = LockType.S;
+        // 3. maintain Idempotent by check targetLockType already set and release list is empty or not
+        if (explicitLock == targetLockType && toRelease.isEmpty()) {
+            return;
         }
 
-        // 3. call acquireAndRelease to escalate and release, don't forget to clear up countChildNum
+        // 4. call acquireAndRelease to escalate and release, don't forget to clear up countChildNum
         this.lockman.acquireAndRelease(transaction, rname, targetLockType, toRelease);
         long transNum = transaction.getTransNum();
         this.numChildLocks.put(transNum, 0);
