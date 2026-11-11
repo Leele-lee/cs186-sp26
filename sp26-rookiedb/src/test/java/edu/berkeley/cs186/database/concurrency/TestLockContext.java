@@ -418,4 +418,23 @@ public class TestLockContext {
         assertEquals(0, dbLockContext.getNumChildren(t1));
     }
 
+    @Test
+    @Category(PublicTests.class)
+    public void testPromoteSIXSaturation() {
+        TransactionContext t1 = transactions[1];
+
+        LockContext databaseContext = dbLockContext;
+        LockContext tableContext = dbLockContext.childContext("table1");
+        LockContext pageContext = dbLockContext.childContext("page1");
+
+        databaseContext.acquire(t1, LockType.IX);
+        tableContext.acquire(t1, LockType.IS);
+        pageContext.acquire(t1, LockType.S);
+
+        databaseContext.promote(t1, LockType.SIX);
+
+        assertEquals(0, databaseContext.getNumChildren(t1));
+        assertEquals(0, tableContext.getNumChildren(t1));
+    }
+
 }
